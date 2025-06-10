@@ -5,21 +5,26 @@
  */
 
 import { Devs } from "@utils/constants";
+import { Logger } from "@utils/Logger";
 import definePlugin, { StartAt } from "@utils/types";
 import { filters, moduleListeners, waitFor } from "@webpack";
 
 const SYM_FORWARD_REF = Symbol.for("react.forward_ref");
 const SYM_MEMO = Symbol.for("react.memo");
+const logger = new Logger("ComponentDemangler/Extra", "#3e00ff");
 /**
  * calls {@link setComponentName} on the given component
  * @returns maybeComponent
  */
 function wrapComponentName<T>(maybeComponent: T, name?: string): T {
-    // dont set if name is falsy
+    // don't set if name is falsy
     if (name) setComponentName(maybeComponent, name);
     return maybeComponent;
 }
+
 function setComponentName(maybeComponent: any, name: string): void {
+    name !== "Icon" && logger.debug(`setting component name for ${name}`);
+
     function defineComponentName(propName: "name" | "displayName") {
         if (Object.hasOwn(maybeComponent, propName)) {
             const desc = Object.getOwnPropertyDescriptor(maybeComponent, propName);
@@ -66,8 +71,56 @@ function setComponentName(maybeComponent: any, name: string): void {
         (IS_DEV ? console.warn : console.debug)(e, maybeComponent, name);
     }
 }
+const map = [
+    [filters.byCode("useStateFromStores"), "useStateFromStores"],
+    // use https://www.npmjs.com/package/react-focus-rings to find the components and their names
+    [filters.componentByCode("FocusRing was given a focusTarget"), "FocusRing"],
+    [filters.componentByCode(".current]", "setThemeOptions"), "FocusRingScope"],
+    // discords context menu is horrifying
+    // use the demangled module to get the finds for each menu item type
+    [filters.componentByCode(".sparkles", "dontCloseOnActionIfHoldingShiftKey"), "Menu.MenuItem"],
+    [filters.componentByCode('role:"separator",', ".separator"), "Menu.MenuSeparator"],
+    // for some reason, this is marked as groupend
+    [filters.componentByCode('role:"group"', "contents:"), "Menu.MenuGroup"],
+    [filters.componentByCode(".customItem"), "Menu.MenuCustomItem"],
+    [filters.componentByCode('"MenuCheckboxItem"'), "Menu.MenuCheckboxItem"],
+    [filters.componentByCode('"MenuRadioItem"'), "Menu.MenuRadioItem"],
+    [filters.componentByCode("menuItemProps", "control"), "Menu.MenuControlItem"],
+    [filters.componentByCode("'[tabindex=\"0\"]'"), "Menu.MenuCompositeControlItem"],
+    [filters.componentByCode('"span":"label"'), "Checkbox"],
+    [filters.componentByCode("checkboxDisabled]:"), "Checkbox.Box"],
+    [filters.componentByCode("radioItemIconClassName", "withTransparentBackground", "radioBarClassName"), "RadioGroup"],
+    [filters.componentByCode(".onlyShineOnHover"), "ShinyButton"],
+    [filters.componentByCode("subMenuClassName", "renderSubmenu"), "Menu.MenuSubMenuItem"],
+    [filters.componentByCode('="expressive"==='), "ExpressiveButton"],
+    [filters.componentByCode("xMinYMid meet"), "Switch.Toggle"],
+    [filters.componentByCode("this.renderTooltip()]"), "Tooltip"],
+    [filters.componentByCode('="div"'), "TooltipContainer"],
+
+] as const;
+export function allEntries<T extends object, K extends keyof T & (string | symbol)>(obj: T): (readonly [K, T[K]])[] {
+    const SYM_NON_ENUMERABLE = Symbol("non-enumerable");
+    const keys: (string | symbol)[] = Object.getOwnPropertyNames(obj);
+
+    keys.push(...Object.getOwnPropertySymbols(obj));
+
+    return keys.map(key => {
+        const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+
+        if (!descriptor)
+            throw new Error("Descriptor is undefined");
+
+        if (!descriptor.enumerable)
+            return SYM_NON_ENUMERABLE;
+
+        return [key as K, obj[key] as T[K]] as const;
+    })
+        .filter(x => x !== SYM_NON_ENUMERABLE);
+}
+const unseenValues = new Set<string>(map.map(([filter, name]) => name));
 export default definePlugin({
-    name: "ComponentDemangler",
+    // Avoid conflict with https://github.com/Vendicated/Vencord/pull/3257
+    name: "ComponentDemangler_",
     description: "",
     authors: [Devs.sadan],
     startAt: StartAt.Init,
@@ -102,6 +155,13 @@ export default definePlugin({
                 match: /(?=getStyle\(\)\{)/,
                 replace: "static displayName=\"Tab\";"
             }
+        },
+        {
+            find: "?\"tooltip\":\"empty\"",
+            replacement: {
+                match: /(\i)=\i=>.{0,10}isVisible.+?\?"tooltip":"empty".*?;(?=class)/,
+                replace: "$&$self.setComponentName($1,'TooltipPlaceholder');"
+            }
         }
     ],
     setComponentName,
@@ -109,65 +169,29 @@ export default definePlugin({
         moduleListeners.add(m => {
             if (m == null || typeof m !== "object") return;
             for (const exp in m) {
+                try {
+                    m[exp];
+                } catch {
+                    continue;
+                }
                 if ((filters.componentByCode(".colors.INTERACTIVE_NORMAL,colorClass")(m[exp]))) {
                     setComponentName(m[exp], "Icon");
                 }
             }
         });
-        // Show up in reacts hooks display
-        waitFor(filters.byCode("useStateFromStores"), m => {
-            setComponentName(m, "useStateFromStores");
-        });
-        // use https://www.npmjs.com/package/react-focus-rings to find the components and their names
-        waitFor(filters.componentByCode("FocusRing was given a focusTarget"), m => {
-            setComponentName(m, "FocusRing");
-        });
-        waitFor(filters.componentByCode(".current]", "setThemeOptions"), m => {
-            setComponentName(m, "FocusRingScope");
-        });
-        // discords context menu is horrifying
-        // use the demangled module to get the finds for each menu item type
-        waitFor(filters.componentByCode(".sparkles", "dontCloseOnActionIfHoldingShiftKey"), m => {
-            setComponentName(m, "Menu.MenuItem");
-        });
-        waitFor(filters.componentByCode('role:"separator",', ".separator"), m => {
-            setComponentName(m, "Menu.MenuSeparator");
-        });
-        // for some reason, this is marked as groupend
-        waitFor(filters.componentByCode('role:"group"', "contents:"), m => {
-            setComponentName(m, "Menu.MenuGroup");
-        });
-        waitFor(filters.componentByCode(".customItem"), m => {
-            setComponentName(m, "Menu.MenuCustomItem");
-        });
-        waitFor(filters.componentByCode('"MenuCheckboxItem"'), m => {
-            setComponentName(m, "Menu.MenuCheckboxItem");
-        });
-        waitFor(filters.componentByCode('"MenuRadioItem"'), m => {
-            setComponentName(m, "Menu.MenuRadioItem");
-        });
-        waitFor(filters.componentByCode("menuItemProps", "control"), m => {
-            setComponentName(m, "Menu.MenuControlItem");
-        });
-        waitFor(filters.componentByCode("'[tabindex=\"0\"]'"), m => {
-            setComponentName(m, "Menu.MenuCompositeControlItem");
-        });
-        // Checkbox
-        waitFor(filters.componentByCode('"span":"label"'), m => {
-            setComponentName(m, "Checkbox");
-        });
-        waitFor(filters.componentByCode("radioItemIconClassName", "withTransparentBackground", "radioBarClassName"), m => {
-            setComponentName(m, "RadioGroup");
-        });
-        waitFor(filters.componentByCode(".onlyShineOnHover"), m => {
-            setComponentName(m, "ShinyButton");
-        });
-        waitFor(filters.componentByCode("subMenuClassName", "renderSubmenu"), m => {
-            setComponentName(m, "Menu.MenuSubMenuItem");
-        });
+        for (const [filter, name] of map) {
+            waitFor(filter, m => {
+                unseenValues.delete(name);
+                setComponentName(m, name);
+            });
+        }
     },
     getStoreNames(stores: any[]): string {
         return stores.map(s => s[Symbol.toStringTag]).join(", ");
+    },
+    listUnseen() {
+        for (const value of unseenValues.values()) {
+            logger.warn(`Unseen component: ${value}`);
+        }
     }
-}
-);
+});
