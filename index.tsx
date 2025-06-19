@@ -87,6 +87,7 @@ const map = [
     [filters.componentByCode('"MenuRadioItem"'), "Menu.MenuRadioItem"],
     [filters.componentByCode("menuItemProps", "control"), "Menu.MenuControlItem"],
     [filters.componentByCode("'[tabindex=\"0\"]'"), "Menu.MenuCompositeControlItem"],
+    [filters.componentByCode("isUsingKeyboardNavigation", "keyboardModeEnabled"), "Menu.Root"],
     [filters.componentByCode('"span":"label"'), "Checkbox"],
     [filters.componentByCode("checkboxDisabled]:"), "Checkbox.Box"],
     [filters.componentByCode("radioItemIconClassName", "withTransparentBackground", "radioBarClassName"), "RadioGroup"],
