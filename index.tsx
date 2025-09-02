@@ -22,7 +22,7 @@ function wrapComponentName<T>(maybeComponent: T, name?: string): T {
     return maybeComponent;
 }
 
-function setComponentName(maybeComponent: any, name: string): void {
+function setComponentName(maybeComponent: any, name: string, opts: any = {}): void {
     name !== "Icon" && logger.debug(`setting component name for ${name}`);
 
     function defineComponentName(propName: "name" | "displayName") {
@@ -43,7 +43,10 @@ function setComponentName(maybeComponent: any, name: string): void {
         }
     }
     try {
-        if (
+        if (opts.prop) {
+            defineComponentName(opts.prop);
+        }
+        else if (
             typeof maybeComponent === "function" &&
             "toString" in maybeComponent &&
             typeof maybeComponent.toString === "function"
@@ -137,8 +140,10 @@ const map = [
     // for some reason, this is marked as groupend
     [filters.componentByCode('role:"group"', "contents:"), "Menu.MenuGroup"],
     [filters.componentByCode(".customItem"), "Menu.MenuCustomItem"],
-    [filters.componentByCode('"MenuCheckboxItem"'), "Menu.MenuCheckboxItem"],
-    [filters.componentByCode('"MenuRadioItem"'), "Menu.MenuRadioItem"],
+    // https://gist.github.com/sadan4/556a3559a08d762fc38e7ef285a69551
+    [filters.componentByCode("Shapes.BOX", "CHECKBOX"), "Menu.MenuCheckboxItem"],
+    // https://gist.github.com/sadan4/e3a27cc7d20695f1862272013dcf2977
+    [filters.componentByCode(",menuItemProps:", ".RADIO"), "Menu.MenuRadioItem"],
     [filters.componentByCode("menuItemProps", "control"), "Menu.MenuControlItem"],
     [filters.componentByCode("'[tabindex=\"0\"]'"), "Menu.MenuCompositeControlItem"],
     [filters.componentByCode("isUsingKeyboardNavigation", "keyboardModeEnabled"), "Menu.Root"],
@@ -151,7 +156,7 @@ const map = [
     [filters.componentByCode("subMenuClassName", "renderSubmenu"), "Menu.MenuSubMenuItem"],
     // https://gist.github.com/sadan4/6a71dcdd9687f3b56094aeca2542f5ad
     // TODO: get the loader wrapper `N` in the gist;
-    [filters.componentByCode('="expressive"==='), "ExpressiveButton"],
+    [filters.componentByCode('="expressive"==='), "Button"],
     [filters.componentByCode("xMinYMid meet"), "Switch.Toggle"],
     [filters.componentByCode("this.renderTooltip()]"), "Tooltip"],
     [filters.componentByCode('="div"'), "TooltipContainer"],
@@ -159,12 +164,10 @@ const map = [
     [filters.componentByCode("defaultRenderUser", "showDefaultAvatarsForNullUsers"), "UserSummaryItem"],
     // https://gist.github.com/sadan4/fd9d37c2a469df6c45876fbf1bfbb6fe
     [filters.componentByCode("getDefaultLinkInterceptor", '"noreferrer noopener"'), "Anchor"],
-    // https://gist.github.com/sadan4/c626df2961b9e318a4f1e43abc016e07
-    [filters.componentByCode(".SIZE_14,tag"), "FormTextInner"],
+    // https://gist.github.com/sadan4/482d9d4b20ae3dfd92964c53ef8fa469
+    [filters.componentByCode(/type:\i=\i\.DEFAULT/, '"text-sm/normal"'), "FormText"],
     // https://gist.github.com/sadan4/92931156f8f8934037c7287ae69d8910
     [filters.componentByCode('"data-justify":'), "FlexStack"],
-    // https://gist.github.com/sadan4/42ea8977ba72a55864afd23921bbbb73
-    [filters.componentByCode('="primary",iconPosition:'), "LinkButton"],
     // https://gist.github.com/sadan4/6188f94676cd78b791ef3fadc01bf3b3
     [filters.componentByCode("colors.TEXT_DANGER.css"), "TextInputError"],
     // src/plugins/voiceMessages/VoicePreview.tsx
@@ -182,8 +185,27 @@ const map = [
     // https://gist.github.com/sadan4/916027c5e1b0dc1a426af68e93cdba03
     [filters.componentByCode("renderableSticker:", ".clickableSticker"), "MessageSticker"],
     // https://gist.github.com/sadan4/cac3e0bc030d43d7fd0c0584361d107c
-    [filters.componentByCode("#{intl::REMOVE_ATTACHMENT_BODY}"), "MessageAccessories"]
-
+    [filters.componentByCode("#{intl::REMOVE_ATTACHMENT_BODY}"), "MessageAccessories"],
+    // https://gist.github.com/sadan4/17d89f4d979d925f7a6997f0b91451af
+    [filters.componentByCode('parentComponent:"ConfirmModal"'), "ConfirmModal"],
+    // https://gist.github.com/sadan4/7db3e341033b993f0fa2e23fd03a5450
+    [filters.componentByCode("#{intl::PLAY}),icon"), "PlayButton"],
+    // https://gist.github.com/sadan4/eded9e63fe497a4c4920e94d670aa484
+    // [filters.componentByCode(""), "ChannelAreaTextForm"]
+    // https://gist.github.com/sadan4/89c58635e6841fe153cdbc8d3daf458b
+    // forward ref, can't easily wrap
+    // [filters.componentByCode(".videoGridWrapper,"), "ChannelCallContent"],
+    // https://gist.github.com/sadan4/9d0c0e7529ba06f6e8c7c194b22a93e3
+    [filters.componentByCode("#{intl::PINNED_MESSAGES}", "TOGGLE_CHANNEL_PINS"), "ChannelPinsButton"],
+    // https://gist.github.com/sadan4/b08e046c93f5ed27c874eaba2d067bf2
+    [filters.componentByCode(/dateFormat:\i=\i/), "DateInput"],
+    // https://gist.github.com/sadan4/7deacace255f7325831465037061cfcf
+    [filters.componentByCode("isQuestEnrollmentBlocked", "isFetchingRewardCode"), "QuestTileCta"],
+    // https://gist.github.com/sadan4/541495b5127c8a165a8aad9e81bde238
+    [filters.componentByCode(/"aria-label":\i,id:\i\}/), "ListSelectionItem"],
+    [filters.componentByCode(",{voiceChannel:", "nameplate:", "lostPermissionTooltipText"), "MemberListItem"],
+    // https://gist.github.com/sadan4/715409653078eb1c75355aefe895ad3a
+    [filters.componentByCode("MINI_PREVIEW,["), "MemberListNameplate"],
 ] as const;
 export function allEntries<T extends object, K extends keyof T & (string | symbol)>(obj: T): (readonly [K, T[K]])[] {
     const SYM_NON_ENUMERABLE = Symbol("non-enumerable");
@@ -251,6 +273,21 @@ export default definePlugin({
                 match: /(\i)=\i=>.{0,10}isVisible.+?\?"tooltip":"empty".*?;(?=class)/,
                 replace: "$&$self.setComponentName($1,'TooltipPlaceholder');"
             }
+        },
+        {
+            find: '="expressive"===',
+            replacement: {
+                match: /(.+?;)(.+?PULSING_ELLIPSIS)(?<=function (\i).+?)/,
+                replace: "$1$self.setComponentName(typeof $3 != 'undefined' ? $3 : void 0, 'ButtonSpinnerWrapper');$2"
+            }
+        },
+        {
+            // https://gist.github.com/sadan4/bf3f4f8552da343a8d8cab39bc449741
+            find: "frecencyWithoutFetchingLatest.favoriteGifs",
+            replacement: {
+                match: /let \i=\i\.memo\(\i\.forwardRef\((\i)\)\)/,
+                replace: "$&;$self.setComponentName($1, 'ChannelGIFPickerButton');"
+            }
         }
     ],
     setComponentName,
@@ -268,7 +305,7 @@ export default definePlugin({
                 }
             }
         });
-        for (const [filter, name] of map) {
+        for (const [filter, name, opts = {}] of map) {
             waitFor(filter, m => {
                 unseenValues.delete(name);
                 setComponentName(m, name);
