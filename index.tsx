@@ -6,7 +6,7 @@
 
 import { Devs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
-import definePlugin, { StartAt } from "@utils/types";
+import definePlugin, { ReporterTestable, StartAt } from "@utils/types";
 import { filters, moduleListeners, waitFor } from "@webpack";
 
 const SYM_FORWARD_REF = Symbol.for("react.forward_ref");
@@ -135,7 +135,7 @@ const map = [
     [filters.componentByCode(".current]", "setThemeOptions"), "FocusRingScope"],
     // discords context menu is horrifying
     // use the demangled module to get the finds for each menu item type
-    [filters.componentByCode(".sparkles", "dontCloseOnActionIfHoldingShiftKey"), "Menu.MenuItem"],
+    [filters.componentByCode('"data-menu-item":"true"', "dontCloseOnActionIfHoldingShiftKey"), "Menu.MenuItem"],
     [filters.componentByCode('role:"separator",', ".separator"), "Menu.MenuSeparator"],
     // for some reason, this is marked as groupend
     [filters.componentByCode('role:"group"', "contents:"), "Menu.MenuGroup"],
@@ -206,6 +206,10 @@ const map = [
     [filters.componentByCode(",{voiceChannel:", "nameplate:", "lostPermissionTooltipText"), "MemberListItem"],
     // https://gist.github.com/sadan4/715409653078eb1c75355aefe895ad3a
     [filters.componentByCode("MINI_PREVIEW,["), "MemberListNameplate"],
+    [filters.componentByCode("=!1,zalgo:"), "Message"],
+    [filters.componentByCode("isVisibleOnlyOnHover", "#{intl::MESSAGE_EDITED_TIMESTAMP_A11Y_LABEL}"), "MessageTimestamp"],
+    [filters.componentByCode("parsedUserId", "=!1,viewingChannelId"), "UserMention"],
+    [filters.componentByCode(".SEND_FAILED?", "#{intl::MESSAGE_UTILITIES_A11Y_LABEL}"), "MessageUtilities"],
 ] as const;
 export function allEntries<T extends object, K extends keyof T & (string | symbol)>(obj: T): (readonly [K, T[K]])[] {
     const SYM_NON_ENUMERABLE = Symbol("non-enumerable");
@@ -234,7 +238,16 @@ export default definePlugin({
     description: "",
     authors: [Devs.sadan],
     startAt: StartAt.Init,
+    reporterTestable: ReporterTestable.None,
     patches: [
+        // always show all developer settings
+        {
+            find: 'searchableTitles:["Developer Options"]',
+            replacement: {
+                match: /isStaff:\i(?=,)/,
+                replace: "_$&=true",
+            }
+        },
         {
             find: '"focus-rings-ring"',
             replacement: {
@@ -288,6 +301,13 @@ export default definePlugin({
                 match: /let \i=\i\.memo\(\i\.forwardRef\((\i)\)\)/,
                 replace: "$&;$self.setComponentName($1, 'ChannelGIFPickerButton');"
             }
+        },
+        {
+            find: /sourceAnalyticsLocations:(\i),parentAnalyticsLocation:\1\[\1\.length-1\],newestAnalyticsLocation:/,
+            replacement: {
+                match: /(?=function (\i)\(\i\)\{let\{children:\i,value:\i\})/,
+                replace: "$self.setComponentName($1, 'AnalyticsLocationProvider');",
+            }
         }
     ],
     setComponentName,
@@ -303,6 +323,16 @@ export default definePlugin({
                 if (m[exp]?.displayName == null && m[exp]?.name?.length < 4 && iconFilter(m[exp])) {
                     setComponentName(m[exp], "Icon");
                 }
+            }
+        });
+        waitFor(filters.byProps("XboxNeutralIcon", "YoutubeNeutralIcon"), m => {
+            for (const exp in m) {
+                try {
+                    m[exp];
+                } catch {
+                    continue;
+                }
+                setComponentName(m[exp], exp);
             }
         });
         for (const [filter, name, opts = {}] of map) {
